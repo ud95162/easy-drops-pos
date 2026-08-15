@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { SerializedProduct } from "@/lib/products";
 import { formatLKR } from "@/lib/money";
@@ -11,7 +12,6 @@ export function ProductsClient({ products }: { products: SerializedProduct[] }) 
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<SerializedProduct | null>(null);
-  const [creating, setCreating] = useState(false);
   const [, startTransition] = useTransition();
 
   const filtered = useMemo(() => {
@@ -26,7 +26,6 @@ export function ProductsClient({ products }: { products: SerializedProduct[] }) 
   }, [products, query]);
 
   function refresh() {
-    setCreating(false);
     setEditing(null);
     router.refresh();
   }
@@ -56,12 +55,12 @@ export function ProductsClient({ products }: { products: SerializedProduct[] }) 
             {products.length} products · manage names, prices and types
           </p>
         </div>
-        <button
-          onClick={() => setCreating(true)}
+        <Link
+          href="/products/new"
           className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
         >
           + New product
-        </button>
+        </Link>
       </div>
 
       <input
@@ -146,9 +145,6 @@ export function ProductsClient({ products }: { products: SerializedProduct[] }) 
         </table>
       </div>
 
-      {creating && (
-        <ProductForm onClose={() => setCreating(false)} onSaved={refresh} />
-      )}
       {editing && (
         <ProductForm
           product={editing}
