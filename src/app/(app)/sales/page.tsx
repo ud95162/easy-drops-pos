@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { toNumber, formatLKR } from "@/lib/money";
+import { DeleteSaleButton } from "./delete-sale-button";
 
 export const dynamic = "force-dynamic";
 
@@ -53,9 +54,15 @@ export default async function SalesPage() {
                   {sale.createdAt.toLocaleString("en-LK")}
                 </span>
               </div>
-              <span className="text-lg font-bold text-brand-700">
-                {formatLKR(toNumber(sale.total))}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="text-lg font-bold text-brand-700">
+                  {formatLKR(toNumber(sale.total))}
+                </span>
+                <DeleteSaleButton
+                  saleId={sale.id}
+                  label={`#${sale.id.slice(-8).toUpperCase()}`}
+                />
+              </div>
             </div>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
               {sale.items.map((item) => (
