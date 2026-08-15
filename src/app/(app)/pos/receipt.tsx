@@ -42,7 +42,7 @@ export function ReceiptView({ receipt }: { receipt: Receipt }) {
               <td className="py-1">
                 {/* Sinhala name is what's printed for the customer */}
                 <span className="font-semibold">{item.sinhalaName}</span>{" "}
-                <span className="whitespace-nowrap text-black/70">
+                <span className="whitespace-nowrap text-[13px] font-extrabold text-black">
                   × {item.quantity}
                   {item.unit !== "pcs" ? item.unit : ""}
                 </span>
