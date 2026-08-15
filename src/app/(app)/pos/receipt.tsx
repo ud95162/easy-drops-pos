@@ -3,7 +3,7 @@
 import type { Receipt } from "./actions";
 import { formatLKR } from "@/lib/money";
 
-const SHOP_NAME = "Easy Drops";
+const SHOP_PHONE = "076 918 7873";
 const SHOP_TAGLINE = "Thank you for shopping with us!";
 
 export function ReceiptView({ receipt }: { receipt: Receipt }) {
@@ -14,8 +14,13 @@ export function ReceiptView({ receipt }: { receipt: Receipt }) {
       className="mx-auto w-[72mm] bg-white p-3 text-[12px] text-black"
     >
       <div className="text-center">
-        <div className="text-base font-bold">{SHOP_NAME}</div>
-        <div className="text-[11px]">Receipt</div>
+        {/* EasyDrops logo (black, for thermal printing) */}
+        <img
+          src="/logo-receipt.png"
+          alt="EasyDrops"
+          className="mx-auto w-[42mm] max-w-full"
+        />
+        <div className="mt-1 text-[11px]">Tel: {SHOP_PHONE}</div>
       </div>
 
       <div className="mt-2 border-b border-dashed border-black pb-1 text-[11px]">
