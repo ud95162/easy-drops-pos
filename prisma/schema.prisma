@@ -1,0 +1,90 @@
+// Prisma schema for Easy Drops POS
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProductType {
+  LOOSE // sold by weight/measure; prices update when new stock arrives
+  PACKET // sold as fixed packages at their set prices
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String // English / internal name
+  sinhalaName String // Sinhala name printed on the receipt
+  type        ProductType @default(PACKET)
+  unit        String      @default("pcs") // e.g. kg, g, L, pcs
+
+  costPrice    Decimal @default(0) @db.Decimal(12, 2)
+  regularPrice Decimal @default(0) @db.Decimal(12, 2)
+  salePrice    Decimal @default(0) @db.Decimal(12, 2)
+
+  stock   Decimal @default(0) @db.Decimal(14, 3)
+  barcode String? @unique
+  active  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stockEntries StockEntry[]
+  saleItems    SaleItem[]
+
+  @@index([name])
+}
+
+// A record every time stock is added. For LOOSE items the new prices
+// captured here also become the product's current prices.
+model StockEntry {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  quantity     Decimal  @db.Decimal(14, 3)
+  costPrice    Decimal  @db.Decimal(12, 2)
+  regularPrice Decimal? @db.Decimal(12, 2)
+  salePrice    Decimal? @db.Decimal(12, 2)
+  note         String?
+
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+model Sale {
+  id     String  @id @default(cuid())
+  total  Decimal @db.Decimal(12, 2)
+  paid   Decimal @default(0) @db.Decimal(12, 2)
+  change Decimal @default(0) @db.Decimal(12, 2)
+
+  createdAt DateTime   @default(now())
+  items     SaleItem[]
+
+  @@index([createdAt])
+}
+
+model SaleItem {
+  id     String @id @default(cuid())
+  saleId String
+  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // Snapshots so receipts/history stay correct even if the product changes later
+  productName        String
+  productSinhalaName String
+  unit               String  @default("pcs")
+
+  quantity  Decimal @db.Decimal(14, 3)
+  unitPrice Decimal @db.Decimal(12, 2)
+  lineTotal Decimal @db.Decimal(12, 2)
+
+  @@index([saleId])
+}
