@@ -78,11 +78,16 @@ Open <http://localhost:3000>, log in with your `POS_PASSWORD`, and start selling
    | `POS_PASSWORD` | the cashier password                              |
    | `AUTH_SECRET`  | a long random string (`openssl rand -base64 32`)  |
 
-5. **Deploy.** The build command (`prisma generate && prisma db push && next build`) automatically creates the database tables on the first deploy.
+5. **Create the tables once.** Locally, with the production `DATABASE_URL` in your `.env`, run:
 
-6. *(Optional)* To load demo products in production, run `npm run db:seed` locally with the production `DATABASE_URL` set.
+   ```bash
+   npm run db:deploy   # prisma db push — creates/updates the tables
+   npm run db:seed     # optional: load demo products
+   ```
 
-> **Note:** the app uses `prisma db push` to sync the schema on each build. This is fine for a small single-user shop. If you later want versioned migrations, switch to `prisma migrate`.
+6. **Deploy.** The Vercel build command is `prisma generate && next build` — it does **not** touch the database, so builds are fast and never hang on a DB connection.
+
+> **Schema changes:** when you change `prisma/schema.prisma`, run `npm run db:deploy` against the production `DATABASE_URL` to apply it (before or after deploying). The build itself never pushes schema. If you later want versioned migrations, switch to `prisma migrate`.
 
 ---
 
