@@ -16,33 +16,34 @@ export function Nav() {
 
   return (
     <header className="no-print sticky top-0 z-10 border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-        <div className="flex items-center gap-6">
-          <span className="text-lg font-bold text-brand-700">Easy Drops POS</span>
-          <nav className="flex gap-1">
-            {links.map((link) => {
-              const active =
-                pathname === link.href || pathname.startsWith(link.href + "/");
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
-                    active
-                      ? "bg-brand-50 text-brand-700"
-                      : "text-slate-600 hover:bg-slate-100"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-        <form action={logout}>
+      <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2 sm:gap-4 sm:px-4 sm:py-3">
+        <span className="shrink-0 text-base font-bold text-brand-700 sm:text-lg">
+          <span className="hidden sm:inline">Easy Drops POS</span>
+          <span className="sm:hidden">Easy Drops</span>
+        </span>
+        <nav className="flex flex-1 gap-1 overflow-x-auto">
+          {links.map((link) => {
+            const active =
+              pathname === link.href || pathname.startsWith(link.href + "/");
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition ${
+                  active
+                    ? "bg-brand-50 text-brand-700"
+                    : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <form action={logout} className="shrink-0">
           <button
             type="submit"
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+            className="rounded-lg px-2 py-2 text-sm font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800 sm:px-3"
           >
             Log out
           </button>

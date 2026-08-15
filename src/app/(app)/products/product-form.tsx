@@ -31,8 +31,8 @@ export function ProductForm({ product, onClose, onSaved }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+    <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-3 sm:p-4">
+      <div className="max-h-[92vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-5 shadow-xl sm:p-6">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-bold">
             {editing ? "Edit product" : "New product"}
@@ -46,7 +46,7 @@ export function ProductForm({ product, onClose, onSaved }: Props) {
         </div>
 
         <form action={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Name (English)">
               <input
                 name="name"
@@ -67,7 +67,7 @@ export function ProductForm({ product, onClose, onSaved }: Props) {
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Type">
               <select
                 name="type"
@@ -89,7 +89,7 @@ export function ProductForm({ product, onClose, onSaved }: Props) {
             </Field>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <Field label="Cost price">
               <input
                 name="costPrice"
@@ -122,7 +122,7 @@ export function ProductForm({ product, onClose, onSaved }: Props) {
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {!editing && (
               <Field label={`Opening stock (${type === "LOOSE" ? "kg/qty" : "pcs"})`}>
                 <input
@@ -181,7 +181,7 @@ export function ProductForm({ product, onClose, onSaved }: Props) {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
+  "w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
 
 function Field({
   label,

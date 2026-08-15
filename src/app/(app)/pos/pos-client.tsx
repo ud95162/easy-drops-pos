@@ -66,6 +66,16 @@ export function PosClient({ products }: { products: SerializedProduct[] }) {
     );
   }
 
+  function changeQty(productId: string, delta: number) {
+    setCart((prev) =>
+      prev.map((i) =>
+        i.product.id === productId
+          ? { ...i, quantity: Math.max(0, round2(i.quantity + delta)) }
+          : i
+      )
+    );
+  }
+
   function removeItem(productId: string) {
     setCart((prev) => prev.filter((i) => i.product.id !== productId));
   }
@@ -99,17 +109,18 @@ export function PosClient({ products }: { products: SerializedProduct[] }) {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+    <div className="grid gap-4 md:grid-cols-[1fr_320px] md:gap-6 lg:grid-cols-[1fr_380px]">
       {/* Product picker */}
       <div>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          inputMode="search"
           autoFocus
           placeholder="Search or scan barcode…"
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-2.5 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
         />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
           {filtered.map((p) => {
             const out = p.stock <= 0;
             return (
@@ -117,7 +128,7 @@ export function PosClient({ products }: { products: SerializedProduct[] }) {
                 key={p.id}
                 onClick={() => !out && addToCart(p)}
                 disabled={out}
-                className={`rounded-xl border bg-white p-3 text-left transition ${
+                className={`min-h-[92px] rounded-xl border bg-white p-3 text-left transition active:scale-[0.98] ${
                   out
                     ? "cursor-not-allowed border-slate-200 opacity-50"
                     : "border-slate-200 hover:border-brand-400 hover:shadow-sm"
@@ -150,7 +161,7 @@ export function PosClient({ products }: { products: SerializedProduct[] }) {
       </div>
 
       {/* Cart */}
-      <div className="lg:sticky lg:top-20 lg:self-start">
+      <div className="md:sticky md:top-20 md:self-start">
         <div className="rounded-xl border border-slate-200 bg-white p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-bold">Cart</h2>
@@ -170,38 +181,68 @@ export function PosClient({ products }: { products: SerializedProduct[] }) {
             </p>
           ) : (
             <div className="space-y-3">
-              {cart.map((item) => (
-                <div key={item.product.id} className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">
-                      {item.product.name}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {formatLKR(item.product.salePrice)} / {item.product.unit}
-                    </div>
-                  </div>
-                  <input
-                    type="number"
-                    min="0"
-                    step={item.product.type === "LOOSE" ? "0.001" : "1"}
-                    value={item.quantity}
-                    onChange={(e) =>
-                      setQty(item.product.id, Number(e.target.value))
-                    }
-                    className="w-20 rounded-md border border-slate-300 px-2 py-1 text-right text-sm outline-none focus:border-brand-500"
-                  />
-                  <div className="w-24 pt-1 text-right text-sm font-semibold">
-                    {formatLKR(round2(item.product.salePrice * item.quantity))}
-                  </div>
-                  <button
-                    onClick={() => removeItem(item.product.id)}
-                    className="pt-1 text-slate-300 hover:text-red-500"
-                    aria-label="Remove"
+              {cart.map((item) => {
+                const step = item.product.type === "LOOSE" ? 0.5 : 1;
+                return (
+                  <div
+                    key={item.product.id}
+                    className="rounded-lg border border-slate-100 p-2"
                   >
-                    ✕
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">
+                          {item.product.name}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {formatLKR(item.product.salePrice)} / {item.product.unit}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => removeItem(item.product.id)}
+                        className="-mr-1 -mt-1 flex h-8 w-8 items-center justify-center rounded-md text-lg text-slate-300 hover:bg-red-50 hover:text-red-500"
+                        aria-label="Remove"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => changeQty(item.product.id, -step)}
+                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 text-xl font-medium text-slate-600 hover:bg-slate-50 active:scale-95"
+                          aria-label="Decrease"
+                        >
+                          −
+                        </button>
+                        <input
+                          type="number"
+                          min="0"
+                          inputMode="decimal"
+                          step={item.product.type === "LOOSE" ? "0.001" : "1"}
+                          value={item.quantity}
+                          onChange={(e) =>
+                            setQty(item.product.id, Number(e.target.value))
+                          }
+                          className="w-16 rounded-lg border border-slate-300 px-2 py-1.5 text-center text-base outline-none focus:border-brand-500"
+                        />
+                        <button
+                          onClick={() => changeQty(item.product.id, step)}
+                          className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 text-xl font-medium text-slate-600 hover:bg-slate-50 active:scale-95"
+                          aria-label="Increase"
+                        >
+                          +
+                        </button>
+                        <span className="ml-1 text-xs text-slate-400">
+                          {item.product.unit}
+                        </span>
+                      </div>
+                      <div className="text-right text-sm font-semibold">
+                        {formatLKR(round2(item.product.salePrice * item.quantity))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -219,10 +260,11 @@ export function PosClient({ products }: { products: SerializedProduct[] }) {
                 type="number"
                 min="0"
                 step="0.01"
+                inputMode="decimal"
                 value={paid}
                 onChange={(e) => setPaid(e.target.value)}
                 placeholder={total.toFixed(2)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-right outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                className="w-full rounded-lg border border-slate-300 px-3 py-3 text-right text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
               />
             </label>
             {paidNum > 0 && (
