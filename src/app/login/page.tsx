@@ -9,10 +9,15 @@ export default async function LoginPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-8 shadow-lg">
-        <div className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-slate-900">Easy Drops POS</h1>
-          <p className="mt-1 text-sm text-slate-500">Enter the cashier password</p>
+      <div className="w-full max-w-sm rounded-2xl border border-sand-200 bg-white p-8 shadow-lg">
+        <div className="mb-6 flex flex-col items-center text-center">
+          {/* EasyDrops logo */}
+          <img
+            src="/logo-mark.png"
+            alt="EasyDrops"
+            className="mb-3 h-16 w-auto"
+          />
+          <p className="text-sm text-slate-500">Enter the cashier password</p>
         </div>
         <LoginForm />
       </div>

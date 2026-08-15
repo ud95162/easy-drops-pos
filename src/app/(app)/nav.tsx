@@ -17,10 +17,14 @@ export function Nav() {
   return (
     <header className="no-print sticky top-0 z-10 border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2 sm:gap-4 sm:px-4 sm:py-3">
-        <span className="shrink-0 text-base font-bold text-brand-700 sm:text-lg">
-          <span className="hidden sm:inline">Easy Drops POS</span>
-          <span className="sm:hidden">Easy Drops</span>
-        </span>
+        <Link href="/pos" className="shrink-0">
+          {/* EasyDrops logo (transparent background) */}
+          <img
+            src="/logo-mark.png"
+            alt="EasyDrops"
+            className="h-8 w-auto sm:h-9"
+          />
+        </Link>
         <nav className="flex flex-1 gap-1 overflow-x-auto">
           {links.map((link) => {
             const active =

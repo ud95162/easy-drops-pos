@@ -94,7 +94,7 @@ export function ProductsClient({ products }: { products: SerializedProduct[] }) 
                     className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                       p.type === "LOOSE"
                         ? "bg-amber-100 text-amber-700"
-                        : "bg-sky-100 text-sky-700"
+                        : "bg-brand-100 text-brand-700"
                     }`}
                   >
                     {p.type === "LOOSE" ? `Loose (${p.unit})` : "Packet"}
