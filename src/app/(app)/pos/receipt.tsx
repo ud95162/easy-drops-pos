@@ -11,7 +11,7 @@ export function ReceiptView({ receipt }: { receipt: Receipt }) {
   return (
     <div
       id="receipt"
-      className="mx-auto w-[80mm] bg-white p-4 text-[12px] text-black"
+      className="mx-auto w-[72mm] bg-white p-3 text-[12px] text-black"
     >
       <div className="text-center">
         <div className="text-base font-bold">{SHOP_NAME}</div>
