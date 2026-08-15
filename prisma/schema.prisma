@@ -82,9 +82,10 @@ model SaleItem {
   productSinhalaName String
   unit               String  @default("pcs")
 
-  quantity  Decimal @db.Decimal(14, 3)
-  unitPrice Decimal @db.Decimal(12, 2)
-  lineTotal Decimal @db.Decimal(12, 2)
+  quantity     Decimal @db.Decimal(14, 3)
+  regularPrice Decimal @default(0) @db.Decimal(12, 2) // normal price (shown on receipt)
+  unitPrice    Decimal @db.Decimal(12, 2) // sale price / "Ape Milla" actually charged
+  lineTotal    Decimal @db.Decimal(12, 2)
 
   @@index([saleId])
 }

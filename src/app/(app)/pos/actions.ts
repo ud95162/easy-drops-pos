@@ -12,14 +12,17 @@ export type ReceiptItem = {
   sinhalaName: string;
   unit: string;
   quantity: number;
-  unitPrice: number;
+  regularPrice: number; // normal price
+  unitPrice: number; // "Ape Milla" (our price) actually charged
   lineTotal: number;
 };
 
 export type Receipt = {
   id: string;
   createdAt: string;
-  total: number;
+  total: number; // total at Ape Milla (what the customer pays)
+  regularTotal: number; // total at regular price
+  savings: number; // regularTotal - total
   paid: number;
   change: number;
   items: ReceiptItem[];
@@ -47,6 +50,7 @@ export async function createSale(
 
       const items: ReceiptItem[] = [];
       let total = 0;
+      let regularTotal = 0;
 
       for (const line of valid) {
         const product = byId.get(line.productId);
@@ -61,20 +65,24 @@ export async function createSale(
         }
 
         const unitPrice = toNumber(product.salePrice);
+        const regularPrice = toNumber(product.regularPrice);
         const lineTotal = round2(unitPrice * line.quantity);
         total = round2(total + lineTotal);
+        regularTotal = round2(regularTotal + regularPrice * line.quantity);
 
         items.push({
           name: product.name,
           sinhalaName: product.sinhalaName,
           unit: product.unit,
           quantity: line.quantity,
+          regularPrice,
           unitPrice,
           lineTotal,
         });
       }
 
       const change = round2(Math.max(0, (paid || 0) - total));
+      const savings = round2(Math.max(0, regularTotal - total));
 
       const sale = await tx.sale.create({
         data: {
@@ -88,6 +96,7 @@ export async function createSale(
               productSinhalaName: items[i].sinhalaName,
               unit: items[i].unit,
               quantity: line.quantity,
+              regularPrice: items[i].regularPrice,
               unitPrice: items[i].unitPrice,
               lineTotal: items[i].lineTotal,
             })),
@@ -107,6 +116,8 @@ export async function createSale(
         id: sale.id,
         createdAt: sale.createdAt.toISOString(),
         total,
+        regularTotal,
+        savings,
         paid: paid || total,
         change,
         items,
