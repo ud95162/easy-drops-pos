@@ -9,6 +9,7 @@ const links = [
   { href: "/products", label: "Products" },
   { href: "/stock", label: "Add Stock" },
   { href: "/sales", label: "Sales History" },
+  { href: "/customers", label: "Customers" },
 ];
 
 export function Nav() {

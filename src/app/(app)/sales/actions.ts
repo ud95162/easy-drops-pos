@@ -15,9 +15,13 @@ export async function deleteSale(id: string): Promise<ActionResult> {
 
   try {
     await prisma.$transaction(async (tx) => {
-      const items = await tx.saleItem.findMany({ where: { saleId: id } });
+      const sale = await tx.sale.findUnique({
+        where: { id },
+        include: { items: true },
+      });
+      if (!sale) return;
 
-      for (const item of items) {
+      for (const item of sale.items) {
         // productId is null only if the product was deleted (onDelete: SetNull).
         if (item.productId) {
           await tx.product.update({
@@ -25,6 +29,14 @@ export async function deleteSale(id: string): Promise<ActionResult> {
             data: { stock: { increment: item.quantity } },
           });
         }
+      }
+
+      // Reverse any credit this sale put on the customer's balance.
+      if (sale.customerId && Number(sale.credit) > 0) {
+        await tx.customer.update({
+          where: { id: sale.customerId },
+          data: { balance: { decrement: sale.credit } },
+        });
       }
 
       // Deleting the sale cascades to its items.
@@ -37,5 +49,6 @@ export async function deleteSale(id: string): Promise<ActionResult> {
   revalidatePath("/sales");
   revalidatePath("/pos");
   revalidatePath("/products");
+  revalidatePath("/customers");
   return { ok: true };
 }

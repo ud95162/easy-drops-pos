@@ -25,6 +25,9 @@ export type Receipt = {
   savings: number; // regularTotal - total
   paid: number;
   change: number;
+  credit: number; // unpaid amount put on the customer's account
+  customerName: string | null;
+  customerBalance: number | null; // customer's total balance after this sale
   items: ReceiptItem[];
 };
 
@@ -34,7 +37,8 @@ export type SaleResult =
 
 export async function createSale(
   lines: CartLine[],
-  paid: number
+  paid: number,
+  customerId?: string | null
 ): Promise<SaleResult> {
   await requireAuth();
 
@@ -81,14 +85,24 @@ export async function createSale(
         });
       }
 
-      const change = round2(Math.max(0, (paid || 0) - total));
+      const effectivePaid = round2(Math.max(0, paid));
+      const change = round2(Math.max(0, effectivePaid - total));
+      const credit = round2(Math.max(0, total - effectivePaid));
       const savings = round2(Math.max(0, regularTotal - total));
+
+      if (credit > 0 && !customerId) {
+        throw new Error(
+          "Select a customer for a credit (unpaid) sale, or collect the full amount."
+        );
+      }
 
       const sale = await tx.sale.create({
         data: {
           total,
-          paid: paid || total,
+          paid: effectivePaid,
           change,
+          credit,
+          customerId: customerId || null,
           items: {
             create: valid.map((line, i) => ({
               productId: line.productId,
@@ -112,14 +126,33 @@ export async function createSale(
         });
       }
 
+      // Attribute any unpaid amount to the customer's running balance.
+      let customerName: string | null = null;
+      let customerBalance: number | null = null;
+      if (customerId) {
+        const customer =
+          credit > 0
+            ? await tx.customer.update({
+                where: { id: customerId },
+                data: { balance: { increment: credit } },
+              })
+            : await tx.customer.findUnique({ where: { id: customerId } });
+        if (!customer) throw new Error("Selected customer not found.");
+        customerName = customer.name;
+        customerBalance = toNumber(customer.balance);
+      }
+
       return {
         id: sale.id,
         createdAt: sale.createdAt.toISOString(),
         total,
         regularTotal,
         savings,
-        paid: paid || total,
+        paid: effectivePaid,
         change,
+        credit,
+        customerName,
+        customerBalance,
         items,
       } satisfies Receipt;
     });
@@ -127,6 +160,7 @@ export async function createSale(
     revalidatePath("/pos");
     revalidatePath("/products");
     revalidatePath("/sales");
+    revalidatePath("/customers");
     return { ok: true, receipt };
   } catch (e: unknown) {
     const message =

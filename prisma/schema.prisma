@@ -62,11 +62,46 @@ model Sale {
   total  Decimal @db.Decimal(12, 2)
   paid   Decimal @default(0) @db.Decimal(12, 2)
   change Decimal @default(0) @db.Decimal(12, 2)
+  credit Decimal @default(0) @db.Decimal(12, 2) // unpaid portion added to a customer's balance
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   createdAt DateTime   @default(now())
   items     SaleItem[]
 
   @@index([createdAt])
+  @@index([customerId])
+}
+
+// A credit customer whose unpaid balances are tracked ("credit book").
+model Customer {
+  id      String  @id @default(cuid())
+  name    String
+  phone   String?
+  note    String?
+  // Amount the customer currently owes the shop (credit taken minus repayments).
+  balance Decimal @default(0) @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sales    Sale[]
+  payments CustomerPayment[]
+
+  @@index([name])
+}
+
+// A repayment a customer makes against their balance.
+model CustomerPayment {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  amount     Decimal  @db.Decimal(12, 2)
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([customerId])
 }
 
 model SaleItem {

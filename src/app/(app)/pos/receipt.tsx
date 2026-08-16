@@ -77,6 +77,23 @@ export function ReceiptView({ receipt }: { receipt: Receipt }) {
         <Row label="ඉතිරි මුදල" value={formatLKR(receipt.change)} />
       </div>
 
+      {/* Customer credit block */}
+      {receipt.customerName && (
+        <div className="mt-2 border-t border-dashed border-black pt-2 text-[12px]">
+          <Row label="පාරිභෝගිකයා" value={receipt.customerName} />
+          {receipt.credit > 0 && (
+            <Row label="ණය (මෙම බිල)" value={formatLKR(receipt.credit)} />
+          )}
+          {receipt.customerBalance != null && (
+            <Row
+              label="මුළු ණය ශේෂය"
+              value={formatLKR(receipt.customerBalance)}
+              bold
+            />
+          )}
+        </div>
+      )}
+
       <div className="mt-3 text-center text-[11px]">{SHOP_TAGLINE}</div>
     </div>
   );

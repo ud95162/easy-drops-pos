@@ -1,14 +1,23 @@
 import { prisma } from "@/lib/prisma";
 import { serializeProduct } from "@/lib/products";
+import { serializeCustomer } from "@/lib/customers";
 import { PosClient } from "./pos-client";
 
 export const dynamic = "force-dynamic";
 
 export default async function PosPage() {
-  const products = await prisma.product.findMany({
-    where: { active: true },
-    orderBy: { name: "asc" },
-  });
+  const [products, customers] = await Promise.all([
+    prisma.product.findMany({
+      where: { active: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.customer.findMany({ orderBy: { name: "asc" } }),
+  ]);
 
-  return <PosClient products={products.map(serializeProduct)} />;
+  return (
+    <PosClient
+      products={products.map(serializeProduct)}
+      customers={customers.map(serializeCustomer)}
+    />
+  );
 }
