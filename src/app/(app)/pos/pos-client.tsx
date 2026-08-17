@@ -10,9 +10,17 @@ import { createCustomer } from "../customers/actions";
 import { ReceiptView } from "./receipt";
 
 type CartItem = {
+  key: string;
   product: SerializedProduct;
   quantity: number;
+  unitPrice: number; // price for this line (editable when added)
+  batchId: string | null; // chosen packet batch (null for loose)
 };
+
+const newKey = () =>
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : String(Math.random());
 
 export function PosClient({
   products,
@@ -27,6 +35,9 @@ export function PosClient({
   const [paid, setPaid] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [addingCustomer, setAddingCustomer] = useState(false);
+  const [pendingProduct, setPendingProduct] = useState<SerializedProduct | null>(
+    null
+  );
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [pending, startTransition] = useTransition();
@@ -44,9 +55,7 @@ export function PosClient({
 
   const total = useMemo(
     () =>
-      round2(
-        cart.reduce((sum, item) => sum + item.product.salePrice * item.quantity, 0)
-      ),
+      round2(cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)),
     [cart]
   );
 
@@ -60,41 +69,42 @@ export function PosClient({
     [customers, customerId]
   );
 
-  function addToCart(product: SerializedProduct) {
+  function tapProduct(product: SerializedProduct) {
+    // Both loose and packet: pick the exact quantity and confirm/change the
+    // sale price before it goes into the cart.
     setError(null);
-    setCart((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
-      if (existing) {
-        return prev.map((i) =>
-          i.product.id === product.id
-            ? { ...i, quantity: round2(i.quantity + (product.type === "LOOSE" ? 0.5 : 1)) }
-            : i
-        );
-      }
-      return [...prev, { product, quantity: product.type === "LOOSE" ? 1 : 1 }];
-    });
+    setPendingProduct(product);
   }
 
-  function setQty(productId: string, quantity: number) {
-    setCart((prev) =>
-      prev.map((i) =>
-        i.product.id === productId ? { ...i, quantity } : i
-      )
-    );
+  function addLine(
+    product: SerializedProduct,
+    quantity: number,
+    unitPrice: number,
+    batchId: string | null
+  ) {
+    setCart((prev) => [
+      { key: newKey(), product, quantity, unitPrice, batchId },
+      ...prev,
+    ]);
+    setPendingProduct(null);
   }
 
-  function changeQty(productId: string, delta: number) {
+  function setQty(key: string, quantity: number) {
+    setCart((prev) => prev.map((i) => (i.key === key ? { ...i, quantity } : i)));
+  }
+
+  function changeQty(key: string, delta: number) {
     setCart((prev) =>
       prev.map((i) =>
-        i.product.id === productId
+        i.key === key
           ? { ...i, quantity: Math.max(0, round2(i.quantity + delta)) }
           : i
       )
     );
   }
 
-  function removeItem(productId: string) {
-    setCart((prev) => prev.filter((i) => i.product.id !== productId));
+  function removeItem(key: string) {
+    setCart((prev) => prev.filter((i) => i.key !== key));
   }
 
   function clearCart() {
@@ -122,7 +132,12 @@ export function PosClient({
     setError(null);
     const lines = cart
       .filter((i) => i.quantity > 0)
-      .map((i) => ({ productId: i.product.id, quantity: i.quantity }));
+      .map((i) => ({
+        productId: i.product.id,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice,
+        batchId: i.batchId,
+      }));
     if (lines.length === 0) {
       setError("Add at least one item.");
       return;
@@ -165,7 +180,7 @@ export function PosClient({
             return (
               <button
                 key={p.id}
-                onClick={() => !out && addToCart(p)}
+                onClick={() => !out && tapProduct(p)}
                 disabled={out}
                 className={`min-h-[92px] rounded-xl border bg-white p-3 text-left transition active:scale-[0.98] ${
                   out
@@ -224,7 +239,7 @@ export function PosClient({
                 const step = item.product.type === "LOOSE" ? 0.5 : 1;
                 return (
                   <div
-                    key={item.product.id}
+                    key={item.key}
                     className="rounded-lg border border-slate-100 p-2"
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -233,11 +248,11 @@ export function PosClient({
                           {item.product.name}
                         </div>
                         <div className="text-xs text-slate-500">
-                          {formatLKR(item.product.salePrice)} / {item.product.unit}
+                          {formatLKR(item.unitPrice)} / {item.product.unit}
                         </div>
                       </div>
                       <button
-                        onClick={() => removeItem(item.product.id)}
+                        onClick={() => removeItem(item.key)}
                         className="-mr-1 -mt-1 flex h-8 w-8 items-center justify-center rounded-md text-lg text-slate-300 hover:bg-red-50 hover:text-red-500"
                         aria-label="Remove"
                       >
@@ -247,7 +262,7 @@ export function PosClient({
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => changeQty(item.product.id, -step)}
+                          onClick={() => changeQty(item.key, -step)}
                           className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 text-xl font-medium text-slate-600 hover:bg-slate-50 active:scale-95"
                           aria-label="Decrease"
                         >
@@ -259,13 +274,11 @@ export function PosClient({
                           inputMode="decimal"
                           step={item.product.type === "LOOSE" ? "0.001" : "1"}
                           value={item.quantity}
-                          onChange={(e) =>
-                            setQty(item.product.id, Number(e.target.value))
-                          }
+                          onChange={(e) => setQty(item.key, Number(e.target.value))}
                           className="w-16 rounded-lg border border-slate-300 px-2 py-1.5 text-center text-base outline-none focus:border-brand-500"
                         />
                         <button
-                          onClick={() => changeQty(item.product.id, step)}
+                          onClick={() => changeQty(item.key, step)}
                           className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 text-xl font-medium text-slate-600 hover:bg-slate-50 active:scale-95"
                           aria-label="Increase"
                         >
@@ -276,7 +289,7 @@ export function PosClient({
                         </span>
                       </div>
                       <div className="text-right text-sm font-semibold">
-                        {formatLKR(round2(item.product.salePrice * item.quantity))}
+                        {formatLKR(round2(item.unitPrice * item.quantity))}
                       </div>
                     </div>
                   </div>
@@ -363,10 +376,12 @@ export function PosClient({
                 className="w-full rounded-lg border border-slate-300 px-3 py-3 text-right text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
               />
             </label>
-            {change > 0 && (
-              <div className="mb-3 flex justify-between text-sm">
-                <span className="text-slate-500">Change</span>
-                <span className="font-semibold">{formatLKR(change)}</span>
+            {paid.trim() !== "" && paidNum >= total && (
+              <div className="mb-3 flex items-center justify-between rounded-lg bg-green-50 px-3 py-2">
+                <span className="font-medium text-green-800">Balance to give</span>
+                <span className="text-lg font-bold text-green-800">
+                  {formatLKR(change)}
+                </span>
               </div>
             )}
             {credit > 0 && (
@@ -397,9 +412,189 @@ export function PosClient({
         </div>
       </div>
 
+      {pendingProduct && (
+        <AddItemDialog
+          product={pendingProduct}
+          onCancel={() => setPendingProduct(null)}
+          onAdd={addLine}
+        />
+      )}
+
       {receipt && (
         <ReceiptModal receipt={receipt} onClose={() => setReceipt(null)} />
       )}
+    </div>
+  );
+}
+
+function AddItemDialog({
+  product,
+  onCancel,
+  onAdd,
+}: {
+  product: SerializedProduct;
+  onCancel: () => void;
+  onAdd: (
+    product: SerializedProduct,
+    quantity: number,
+    unitPrice: number,
+    batchId: string | null
+  ) => void;
+}) {
+  const isLoose = product.type === "LOOSE";
+  const batches = product.batches;
+  const hasBatches = !isLoose && batches.length > 0;
+
+  const [batchId, setBatchId] = useState(hasBatches ? batches[0].id : "");
+  const selectedBatch = batches.find((b) => b.id === batchId) ?? null;
+  const maxQty = selectedBatch ? selectedBatch.remaining : product.stock;
+
+  const [qty, setQty] = useState(isLoose ? "" : "1");
+  const [price, setPrice] = useState(
+    String(hasBatches ? batches[0].salePrice : product.salePrice)
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  function selectBatch(id: string) {
+    setBatchId(id);
+    const b = batches.find((x) => x.id === id);
+    if (b) setPrice(String(b.salePrice));
+    setError(null);
+  }
+
+  function add() {
+    const quantity = Number(qty);
+    const unitPrice = Number(price);
+    if (hasBatches && !batchId) {
+      setError("Select a stock batch.");
+      return;
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setError("Enter a quantity greater than zero.");
+      return;
+    }
+    if (quantity > maxQty) {
+      setError(
+        hasBatches
+          ? `Only ${maxQty} ${product.unit} left in this batch.`
+          : `Only ${maxQty} ${product.unit} in stock.`
+      );
+      return;
+    }
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      setError("Enter a valid price.");
+      return;
+    }
+    onAdd(product, round2(quantity), round2(unitPrice), batchId || null);
+  }
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/40 p-4">
+      <div className="max-h-[90vh] w-full max-w-xs overflow-auto rounded-2xl bg-white p-5 shadow-xl">
+        <div className="mb-1 flex items-start justify-between gap-2">
+          <div>
+            <h3 className="font-bold leading-tight">{product.name}</h3>
+            <p className="text-sm text-slate-500">{product.sinhalaName}</p>
+          </div>
+          <button
+            onClick={onCancel}
+            className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100"
+          >
+            ✕
+          </button>
+        </div>
+        <p className="mb-3 text-xs text-slate-400">
+          In stock: {product.stock} {product.unit}
+        </p>
+
+        {/* Batch selector for packets */}
+        {hasBatches && (
+          <div className="mb-3">
+            <span className="mb-1 block text-xs font-medium text-slate-600">
+              Sell from which batch?
+            </span>
+            <div className="space-y-1.5">
+              {batches.map((b, i) => (
+                <label
+                  key={b.id}
+                  className={`flex cursor-pointer items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${
+                    batchId === b.id
+                      ? "border-brand-500 bg-brand-50"
+                      : "border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="batch"
+                      checked={batchId === b.id}
+                      onChange={() => selectBatch(b.id)}
+                      className="accent-brand-600"
+                    />
+                    <span>
+                      Batch {i + 1}:{" "}
+                      <b>
+                        {b.remaining} {product.unit}
+                      </b>{" "}
+                      @ {formatLKR(b.salePrice)}
+                    </span>
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    cost {formatLKR(b.costPrice)}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-600">
+              Quantity ({product.unit})
+            </span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step={isLoose ? "0.001" : "1"}
+              value={qty}
+              autoFocus
+              placeholder={isLoose ? "e.g. 1.5" : "1"}
+              onChange={(e) => setQty(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base outline-none focus:border-brand-500"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-600">
+              Sale price
+            </span>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base outline-none focus:border-brand-500"
+            />
+          </label>
+        </div>
+
+        {error && (
+          <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+            {error}
+          </p>
+        )}
+
+        <button
+          onClick={add}
+          className="mt-4 w-full rounded-lg bg-brand-600 px-4 py-2.5 font-semibold text-white hover:bg-brand-700"
+        >
+          Add to cart ·{" "}
+          {formatLKR(round2((Number(qty) || 0) * (Number(price) || 0)))}
+        </button>
+      </div>
     </div>
   );
 }

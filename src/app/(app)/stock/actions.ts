@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { ProductType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { syncPacketProduct } from "@/lib/packet-sync";
 
 export type ActionResult = { ok: boolean; error?: string };
 
@@ -28,53 +29,57 @@ export async function addStock(formData: FormData): Promise<ActionResult> {
 
   const isLoose = product.type === ProductType.LOOSE;
 
-  // For loose items the new batch prices replace the product's current prices.
-  // For packet items the prices stay as they are.
-  let costPrice = Number(product.costPrice);
-  let regularPrice: number | null = null;
-  let salePrice: number | null = null;
+  // Both loose and packet stock-ins now carry their own cost/regular/sale price.
+  // - LOOSE: the new prices replace the product's current prices.
+  // - PACKET: the new stock becomes its own priced batch (sold FIFO after
+  //   existing batches).
+  const costPrice = num(formData, "costPrice");
+  const regularPrice = num(formData, "regularPrice");
+  const salePrice = num(formData, "salePrice");
 
-  if (isLoose) {
-    const newCost = num(formData, "costPrice");
-    const newRegular = num(formData, "regularPrice");
-    const newSale = num(formData, "salePrice");
-
-    if (
-      !Number.isFinite(newCost) ||
-      !Number.isFinite(newRegular) ||
-      !Number.isFinite(newSale)
-    ) {
-      return { ok: false, error: "Enter cost, regular and sale prices for the new stock." };
-    }
-    if (newCost < 0 || newRegular < 0 || newSale < 0)
-      return { ok: false, error: "Prices cannot be negative." };
-
-    costPrice = newCost;
-    regularPrice = newRegular;
-    salePrice = newSale;
+  if (
+    !Number.isFinite(costPrice) ||
+    !Number.isFinite(regularPrice) ||
+    !Number.isFinite(salePrice)
+  ) {
+    return {
+      ok: false,
+      error: "Enter cost, regular and sale prices for the new stock.",
+    };
   }
+  if (costPrice < 0 || regularPrice < 0 || salePrice < 0)
+    return { ok: false, error: "Prices cannot be negative." };
 
   await prisma.$transaction(async (tx) => {
+    // History log (both types).
     await tx.stockEntry.create({
-      data: {
-        productId,
-        quantity,
-        costPrice,
-        regularPrice,
-        salePrice,
-        note,
-      },
+      data: { productId, quantity, costPrice, regularPrice, salePrice, note },
     });
 
-    await tx.product.update({
-      where: { id: productId },
-      data: {
-        stock: { increment: quantity },
-        ...(isLoose && regularPrice != null && salePrice != null
-          ? { costPrice, regularPrice, salePrice }
-          : {}),
-      },
-    });
+    if (isLoose) {
+      await tx.product.update({
+        where: { id: productId },
+        data: {
+          stock: { increment: quantity },
+          costPrice,
+          regularPrice,
+          salePrice,
+        },
+      });
+    } else {
+      // New priced batch for the packet.
+      await tx.productBatch.create({
+        data: {
+          productId,
+          costPrice,
+          regularPrice,
+          salePrice,
+          quantity,
+          remaining: quantity,
+        },
+      });
+      await syncPacketProduct(tx, productId);
+    }
   });
 
   revalidatePath("/stock");

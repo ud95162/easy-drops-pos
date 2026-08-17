@@ -1,11 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { round2, toNumber } from "@/lib/money";
+import { syncPacketProduct } from "@/lib/packet-sync";
 
-export type CartLine = { productId: string; quantity: number };
+export type CartLine = {
+  productId: string;
+  quantity: number;
+  unitPrice?: number; // cashier-set price; defaults to the product's sale price
+  batchId?: string | null; // which packet batch to sell from
+};
 
 export type ReceiptItem = {
   name: string;
@@ -49,10 +56,18 @@ export async function createSale(
     const receipt = await prisma.$transaction(async (tx) => {
       const products = await tx.product.findMany({
         where: { id: { in: valid.map((l) => l.productId) } },
+        include: {
+          batches: {
+            where: { remaining: { gt: 0 } },
+            orderBy: { createdAt: "asc" },
+          },
+        },
       });
       const byId = new Map(products.map((p) => [p.id, p]));
 
       const items: ReceiptItem[] = [];
+      const saleItemsData: Prisma.SaleItemUncheckedCreateWithoutSaleInput[] = [];
+      const packetsToSync = new Set<string>();
       let total = 0;
       let regularTotal = 0;
 
@@ -68,12 +83,38 @@ export async function createSale(
           );
         }
 
-        const unitPrice = toNumber(product.salePrice);
-        const regularPrice = toNumber(product.regularPrice);
+        // For a packet, the cost/regular/sale prices come from the batch the
+        // cashier chose (falls back to the front batch, then the product).
+        let batch: (typeof product.batches)[number] | null = null;
+        if (product.type === "PACKET" && product.batches.length > 0) {
+          batch = line.batchId
+            ? product.batches.find((b) => b.id === line.batchId) ?? null
+            : product.batches[0];
+          if (!batch) {
+            throw new Error(`Choose a stock batch for ${product.name}.`);
+          }
+          if (line.quantity > toNumber(batch.remaining)) {
+            throw new Error(
+              `Only ${toNumber(batch.remaining)} ${product.unit} left in that batch of ${product.name}.`
+            );
+          }
+        }
+
+        const costPrice = toNumber(batch?.costPrice ?? product.costPrice);
+        const regularPrice = toNumber(batch?.regularPrice ?? product.regularPrice);
+        // The cashier sets the price when adding; fall back to the batch/product
+        // sale price.
+        const unitPrice = round2(
+          Math.max(
+            0,
+            line.unitPrice ?? toNumber(batch?.salePrice ?? product.salePrice)
+          )
+        );
         const lineTotal = round2(unitPrice * line.quantity);
         total = round2(total + lineTotal);
         regularTotal = round2(regularTotal + regularPrice * line.quantity);
 
+        // One receipt line per cart item.
         items.push({
           name: product.name,
           sinhalaName: product.sinhalaName,
@@ -83,6 +124,33 @@ export async function createSale(
           unitPrice,
           lineTotal,
         });
+
+        const saleItem = {
+          productId: product.id,
+          batchId: batch?.id ?? null,
+          productName: product.name,
+          productSinhalaName: product.sinhalaName,
+          unit: product.unit,
+          costPrice,
+          regularPrice,
+          unitPrice,
+          quantity: line.quantity,
+          lineTotal,
+        };
+        saleItemsData.push(saleItem);
+
+        if (batch) {
+          await tx.productBatch.update({
+            where: { id: batch.id },
+            data: { remaining: { decrement: line.quantity } },
+          });
+          packetsToSync.add(product.id);
+        } else {
+          await tx.product.update({
+            where: { id: product.id },
+            data: { stock: { decrement: line.quantity } },
+          });
+        }
       }
 
       const effectivePaid = round2(Math.max(0, paid));
@@ -103,27 +171,13 @@ export async function createSale(
           change,
           credit,
           customerId: customerId || null,
-          items: {
-            create: valid.map((line, i) => ({
-              productId: line.productId,
-              productName: items[i].name,
-              productSinhalaName: items[i].sinhalaName,
-              unit: items[i].unit,
-              quantity: line.quantity,
-              regularPrice: items[i].regularPrice,
-              unitPrice: items[i].unitPrice,
-              lineTotal: items[i].lineTotal,
-            })),
-          },
+          items: { create: saleItemsData },
         },
       });
 
-      // Decrement stock for each product.
-      for (const line of valid) {
-        await tx.product.update({
-          where: { id: line.productId },
-          data: { stock: { decrement: line.quantity } },
-        });
+      // Recompute stock + current price for every packet we drew from.
+      for (const productId of packetsToSync) {
+        await syncPacketProduct(tx, productId);
       }
 
       // Attribute any unpaid amount to the customer's running balance.

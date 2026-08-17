@@ -75,11 +75,32 @@ async function main() {
   // Idempotent reseed of the demo catalogue.
   await prisma.saleItem.deleteMany();
   await prisma.sale.deleteMany();
+  await prisma.customerPayment.deleteMany();
+  await prisma.customer.deleteMany();
   await prisma.stockEntry.deleteMany();
+  await prisma.productBatch.deleteMany();
   await prisma.product.deleteMany();
 
   for (const p of products) {
-    await prisma.product.create({ data: p });
+    await prisma.product.create({
+      data: {
+        ...p,
+        // Packets start as their first priced batch.
+        ...(p.type === ProductType.PACKET && p.stock > 0
+          ? {
+              batches: {
+                create: {
+                  costPrice: p.costPrice,
+                  regularPrice: p.regularPrice,
+                  salePrice: p.salePrice,
+                  quantity: p.stock,
+                  remaining: p.stock,
+                },
+              },
+            }
+          : {}),
+      },
+    });
   }
 
   console.log(`Seeded ${products.length} products.`);

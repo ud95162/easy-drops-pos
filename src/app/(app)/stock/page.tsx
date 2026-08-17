@@ -10,6 +10,12 @@ export default async function StockPage() {
     prisma.product.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
+      include: {
+        batches: {
+          where: { remaining: { gt: 0 } },
+          orderBy: { createdAt: "asc" },
+        },
+      },
     }),
     prisma.stockEntry.findMany({
       orderBy: { createdAt: "desc" },

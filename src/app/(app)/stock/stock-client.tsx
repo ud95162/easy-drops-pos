@@ -41,7 +41,8 @@ export function StockClient({ products }: { products: SerializedProduct[] }) {
       <h1 className="mb-1 text-2xl font-bold">Add stock</h1>
       <p className="mb-5 text-sm text-slate-500">
         Add incoming stock. For loose items, the new prices replace the current
-        prices. Packet items keep their prices.
+        prices. For packets, the new stock becomes its own priced batch you can
+        pick from when selling.
       </p>
 
       <form
@@ -76,6 +77,25 @@ export function StockClient({ products }: { products: SerializedProduct[] }) {
           <div className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
             Current stock: <b>{selected.stock} {selected.unit}</b> · current sale
             price: <b>{formatLKR(selected.salePrice)}</b>
+            {selected.type === "PACKET" && selected.batches.length > 0 && (
+              <div className="mt-2 border-t border-slate-200 pt-2">
+                <div className="mb-1 font-medium text-slate-500">
+                  Batches (pick one when selling):
+                </div>
+                <ul className="space-y-0.5">
+                  {selected.batches.map((b, i) => (
+                    <li key={b.id} className="flex justify-between">
+                      <span>
+                        {i + 1}. {b.remaining} {selected.unit} @ {formatLKR(b.salePrice)}
+                      </span>
+                      <span className="text-slate-400">
+                        cost {formatLKR(b.costPrice)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 
@@ -95,11 +115,12 @@ export function StockClient({ products }: { products: SerializedProduct[] }) {
           />
         </label>
 
-        {isLoose && (
+        {selected && (
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
             <p className="mb-3 text-xs font-medium text-amber-800">
-              New batch prices — these will replace {selected?.name}&apos;s current
-              prices.
+              {isLoose
+                ? `New prices — these replace ${selected.name}'s current prices.`
+                : `New batch prices — this stock becomes its own batch you can choose from when selling.`}
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <label className="block">

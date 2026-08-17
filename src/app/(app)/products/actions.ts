@@ -39,6 +39,8 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
   if (regularPrice < 0 || salePrice < 0 || costPrice < 0)
     return { ok: false, error: "Prices cannot be negative." };
 
+  const effectiveSale = salePrice || regularPrice;
+
   try {
     await prisma.product.create({
       data: {
@@ -48,9 +50,23 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
         unit,
         costPrice,
         regularPrice,
-        salePrice: salePrice || regularPrice,
+        salePrice: effectiveSale,
         stock,
         barcode: barcodeRaw || null,
+        // A packet with opening stock starts as its first priced batch.
+        ...(type === ProductType.PACKET && stock > 0
+          ? {
+              batches: {
+                create: {
+                  costPrice,
+                  regularPrice,
+                  salePrice: effectiveSale,
+                  quantity: stock,
+                  remaining: stock,
+                },
+              },
+            }
+          : {}),
       },
     });
   } catch (e: unknown) {
@@ -81,6 +97,10 @@ export async function updateProduct(
   if (!name) return { ok: false, error: "Name is required." };
   if (!sinhalaName) return { ok: false, error: "Sinhala name is required." };
 
+  const costPrice = num(formData, "costPrice");
+  const regularPrice = num(formData, "regularPrice");
+  const salePrice = num(formData, "salePrice");
+
   try {
     await prisma.product.update({
       where: { id },
@@ -89,12 +109,27 @@ export async function updateProduct(
         sinhalaName,
         type,
         unit,
-        costPrice: num(formData, "costPrice"),
-        regularPrice: num(formData, "regularPrice"),
-        salePrice: num(formData, "salePrice"),
+        costPrice,
+        regularPrice,
+        salePrice,
         barcode: barcodeRaw || null,
       },
     });
+
+    // For a packet, the "current" price lives on its oldest in-stock batch —
+    // keep it in sync so an edit here isn't overwritten on the next restock.
+    if (type === ProductType.PACKET) {
+      const current = await prisma.productBatch.findFirst({
+        where: { productId: id, remaining: { gt: 0 } },
+        orderBy: { createdAt: "asc" },
+      });
+      if (current) {
+        await prisma.productBatch.update({
+          where: { id: current.id },
+          data: { costPrice, regularPrice, salePrice },
+        });
+      }
+    }
   } catch (e: unknown) {
     if (e && typeof e === "object" && "code" in e && e.code === "P2002") {
       return { ok: false, error: "That barcode is already used by another product." };

@@ -35,8 +35,31 @@ model Product {
 
   stockEntries StockEntry[]
   saleItems    SaleItem[]
+  batches      ProductBatch[]
 
   @@index([name])
+}
+
+// A priced stock batch for PACKET items. Each restock creates a batch;
+// the POS sells the oldest batch first (FIFO) at that batch's price.
+model ProductBatch {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  costPrice    Decimal @db.Decimal(12, 2)
+  regularPrice Decimal @db.Decimal(12, 2)
+  salePrice    Decimal @db.Decimal(12, 2)
+
+  quantity  Decimal @db.Decimal(14, 3) // original quantity added
+  remaining Decimal @db.Decimal(14, 3) // quantity still in stock
+
+  createdAt DateTime @default(now())
+
+  saleItems SaleItem[]
+
+  @@index([productId])
+  @@index([productId, remaining])
 }
 
 // A record every time stock is added. For LOOSE items the new prices
@@ -112,12 +135,18 @@ model SaleItem {
   productId String?
   product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
+  // For PACKET items, which priced batch this line was sold from (for FIFO
+  // stock restore when a sale is voided).
+  batchId String?
+  batch   ProductBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
   // Snapshots so receipts/history stay correct even if the product changes later
   productName        String
   productSinhalaName String
   unit               String  @default("pcs")
 
   quantity     Decimal @db.Decimal(14, 3)
+  costPrice    Decimal @default(0) @db.Decimal(12, 2) // cost at time of sale
   regularPrice Decimal @default(0) @db.Decimal(12, 2) // normal price (shown on receipt)
   unitPrice    Decimal @db.Decimal(12, 2) // sale price / "Ape Milla" actually charged
   lineTotal    Decimal @db.Decimal(12, 2)

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { syncPacketProduct } from "@/lib/packet-sync";
 
 export type ActionResult = { ok: boolean; error?: string };
 
@@ -21,14 +22,27 @@ export async function deleteSale(id: string): Promise<ActionResult> {
       });
       if (!sale) return;
 
+      const packetsToSync = new Set<string>();
       for (const item of sale.items) {
-        // productId is null only if the product was deleted (onDelete: SetNull).
-        if (item.productId) {
+        // A non-null batchId means this was a FIFO packet portion — return the
+        // quantity to that exact batch. batchId is null for loose items (and
+        // for packet sales made before batches existed), which decremented the
+        // product's own stock.
+        if (item.batchId) {
+          await tx.productBatch.update({
+            where: { id: item.batchId },
+            data: { remaining: { increment: item.quantity } },
+          });
+          if (item.productId) packetsToSync.add(item.productId);
+        } else if (item.productId) {
           await tx.product.update({
             where: { id: item.productId },
             data: { stock: { increment: item.quantity } },
           });
         }
+      }
+      for (const productId of packetsToSync) {
+        await syncPacketProduct(tx, productId);
       }
 
       // Reverse any credit this sale put on the customer's balance.

@@ -1,5 +1,6 @@
-import type { Product, ProductType } from "@prisma/client";
+import type { Product, ProductBatch, ProductType } from "@prisma/client";
 import { toNumber } from "./money";
+import type { BatchLite } from "./batches";
 
 export type SerializedProduct = {
   id: string;
@@ -13,10 +14,25 @@ export type SerializedProduct = {
   stock: number;
   barcode: string | null;
   active: boolean;
+  // For PACKET items: priced stock batches, oldest first (only those with stock).
+  batches: (BatchLite & { costPrice: number; quantity: number })[];
 };
 
 /** Convert a Prisma Product (with Decimal fields) to a plain client-safe object. */
-export function serializeProduct(p: Product): SerializedProduct {
+export function serializeProduct(
+  p: Product & { batches?: ProductBatch[] }
+): SerializedProduct {
+  const batches = (p.batches ?? [])
+    .filter((b) => toNumber(b.remaining) > 0)
+    .map((b) => ({
+      id: b.id,
+      salePrice: toNumber(b.salePrice),
+      regularPrice: toNumber(b.regularPrice),
+      costPrice: toNumber(b.costPrice),
+      remaining: toNumber(b.remaining),
+      quantity: toNumber(b.quantity),
+    }));
+
   return {
     id: p.id,
     name: p.name,
@@ -29,5 +45,6 @@ export function serializeProduct(p: Product): SerializedProduct {
     stock: toNumber(p.stock),
     barcode: p.barcode,
     active: p.active,
+    batches,
   };
 }
