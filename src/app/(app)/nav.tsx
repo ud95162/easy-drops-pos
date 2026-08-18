@@ -10,6 +10,7 @@ const links = [
   { href: "/stock", label: "Add Stock" },
   { href: "/sales", label: "Sales History" },
   { href: "/customers", label: "Customers" },
+  { href: "/reports", label: "Reports" },
 ];
 
 export function Nav() {
