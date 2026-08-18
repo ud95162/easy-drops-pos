@@ -38,20 +38,25 @@ export function PosClient({
   const [pendingProduct, setPendingProduct] = useState<SerializedProduct | null>(
     null
   );
+  const [searchFocused, setSearchFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const filtered = useMemo(() => {
+  const suggestions = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return products;
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.sinhalaName.toLowerCase().includes(q) ||
-        (p.barcode ?? "").toLowerCase().includes(q)
-    );
+    if (!q) return [];
+    return products
+      .filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.sinhalaName.toLowerCase().includes(q) ||
+          (p.barcode ?? "").toLowerCase().includes(q)
+      )
+      .slice(0, 10);
   }, [products, query]);
+
+  const showSuggestions = searchFocused && query.trim() !== "";
 
   const total = useMemo(
     () =>
@@ -74,6 +79,14 @@ export function PosClient({
     // sale price before it goes into the cart.
     setError(null);
     setPendingProduct(product);
+  }
+
+  // Choose a product from the search suggestions: open the add dialog and
+  // clear the search so the next scan/search starts fresh.
+  function selectProduct(product: SerializedProduct) {
+    setQuery("");
+    setSearchFocused(false);
+    tapProduct(product);
   }
 
   function addLine(
@@ -164,54 +177,91 @@ export function PosClient({
 
   return (
     <div className="grid gap-4 md:grid-cols-[1fr_320px] md:gap-6 lg:grid-cols-[1fr_380px]">
-      {/* Product picker */}
+      {/* Product search + suggestions */}
       <div>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          inputMode="search"
-          autoFocus
-          placeholder="Search or scan barcode…"
-          className="mb-4 w-full rounded-lg border border-slate-300 px-4 py-3 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-        />
-        <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
-          {filtered.map((p) => {
-            const out = p.stock <= 0;
-            return (
-              <button
-                key={p.id}
-                onClick={() => !out && tapProduct(p)}
-                disabled={out}
-                className={`min-h-[92px] rounded-xl border bg-white p-3 text-left transition active:scale-[0.98] ${
-                  out
-                    ? "cursor-not-allowed border-slate-200 opacity-50"
-                    : "border-slate-200 hover:border-brand-400 hover:shadow-sm"
-                }`}
-              >
-                <div className="font-semibold leading-tight">{p.name}</div>
-                <div className="text-sm text-slate-500">{p.sinhalaName}</div>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="font-bold text-brand-700">
-                    {formatLKR(p.salePrice)}
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    {p.stock} {p.unit}
-                  </span>
-                </div>
-                {p.type === "LOOSE" && (
-                  <span className="mt-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
-                    loose / {p.unit}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-          {filtered.length === 0 && (
-            <p className="col-span-full py-10 text-center text-slate-400">
-              No products found.
-            </p>
+        <div className="relative">
+          <input
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSearchFocused(true);
+            }}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && suggestions.length > 0) {
+                e.preventDefault();
+                selectProduct(suggestions[0]);
+              }
+              if (e.key === "Escape") setSearchFocused(false);
+            }}
+            inputMode="search"
+            autoFocus
+            placeholder="Search products or scan barcode…"
+            className="w-full rounded-lg border border-slate-300 px-4 py-3 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+          />
+
+          {showSuggestions && (
+            <div className="absolute z-20 mt-1 max-h-96 w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+              {suggestions.length === 0 ? (
+                <p className="px-4 py-6 text-center text-sm text-slate-400">
+                  No products match “{query}”.
+                </p>
+              ) : (
+                suggestions.map((p) => {
+                  const out = p.stock <= 0;
+                  return (
+                    <button
+                      key={p.id}
+                      // onMouseDown fires before the input's onBlur, so the click registers.
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        if (!out) selectProduct(p);
+                      }}
+                      disabled={out}
+                      className={`flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left last:border-0 ${
+                        out
+                          ? "cursor-not-allowed opacity-50"
+                          : "hover:bg-brand-50"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold leading-tight">
+                          {p.name}{" "}
+                          <span className="font-normal text-slate-500">
+                            {p.sinhalaName}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-xs">
+                          <span className="font-bold text-brand-700">
+                            {formatLKR(p.salePrice)}
+                          </span>
+                          <span className="text-slate-400">
+                            {p.stock} {p.unit} in stock
+                          </span>
+                          {p.type === "LOOSE" && (
+                            <span className="rounded bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700">
+                              loose
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span className="shrink-0 rounded-md bg-brand-600 px-2 py-1 text-xs font-semibold text-white">
+                        {out ? "Out" : "Add"}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
           )}
         </div>
+
+        {!query.trim() && (
+          <p className="mt-4 rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-400">
+            Start typing a product name or Sinhala name to add items.
+          </p>
+        )}
       </div>
 
       {/* Cart */}

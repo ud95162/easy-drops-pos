@@ -12,6 +12,8 @@ const inputClass =
 export function StockClient({ products }: { products: SerializedProduct[] }) {
   const router = useRouter();
   const [productId, setProductId] = useState("");
+  const [search, setSearch] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -21,6 +23,28 @@ export function StockClient({ products }: { products: SerializedProduct[] }) {
     [products, productId]
   );
   const isLoose = selected?.type === "LOOSE";
+
+  const suggestions = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return [];
+    return products
+      .filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.sinhalaName.toLowerCase().includes(q) ||
+          (p.barcode ?? "").toLowerCase().includes(q)
+      )
+      .slice(0, 10);
+  }, [products, search]);
+
+  const showSuggestions = searchFocused && !productId && search.trim() !== "";
+
+  function pickProduct(p: SerializedProduct) {
+    setProductId(p.id);
+    setSearch(`${p.name} — ${p.sinhalaName}`);
+    setSearchFocused(false);
+    setDone(false);
+  }
 
   function handleSubmit(formData: FormData) {
     setError(null);
@@ -51,27 +75,62 @@ export function StockClient({ products }: { products: SerializedProduct[] }) {
       >
         <input type="hidden" name="productId" value={productId} />
 
-        <label className="mb-4 block">
+        <div className="mb-4 block">
           <span className="mb-1 block text-xs font-medium text-slate-600">
             Product
           </span>
-          <select
-            value={productId}
-            onChange={(e) => {
-              setProductId(e.target.value);
-              setDone(false);
-            }}
-            className={inputClass}
-            required
-          >
-            <option value="">Choose a product…</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} — {p.sinhalaName} ({p.type === "LOOSE" ? "loose" : "packet"})
-              </option>
-            ))}
-          </select>
-        </label>
+          <div className="relative">
+            <input
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setProductId(""); // typing clears the selection until re-picked
+                setSearchFocused(true);
+                setDone(false);
+              }}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && suggestions.length > 0) {
+                  e.preventDefault();
+                  pickProduct(suggestions[0]);
+                }
+              }}
+              placeholder="Search product by name or Sinhala name…"
+              className={inputClass}
+            />
+            {showSuggestions && (
+              <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                {suggestions.length === 0 ? (
+                  <p className="px-4 py-4 text-center text-sm text-slate-400">
+                    No products match “{search}”.
+                  </p>
+                ) : (
+                  suggestions.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        pickProduct(p);
+                      }}
+                      className="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5 text-left last:border-0 hover:bg-brand-50"
+                    >
+                      <span className="min-w-0">
+                        <span className="font-medium">{p.name}</span>{" "}
+                        <span className="text-slate-500">{p.sinhalaName}</span>
+                      </span>
+                      <span className="shrink-0 text-xs text-slate-400">
+                        {p.type === "LOOSE" ? "loose" : "packet"} · {p.stock}{" "}
+                        {p.unit}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
         {selected && (
           <div className="mb-4 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
