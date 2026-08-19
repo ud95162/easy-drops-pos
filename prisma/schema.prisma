@@ -21,6 +21,7 @@ model Product {
   sinhalaName String // Sinhala name printed on the receipt
   type        ProductType @default(PACKET)
   unit        String      @default("pcs") // e.g. kg, g, L, pcs
+  category    String? // storefront category slug (see src/lib/categories.ts)
 
   costPrice    Decimal @default(0) @db.Decimal(12, 2)
   regularPrice Decimal @default(0) @db.Decimal(12, 2)
@@ -30,6 +31,10 @@ model Product {
   barcode String? @unique
   active  Boolean @default(true)
 
+  // Product photo shown on the storefront, stored in the DB.
+  imageData Bytes? // raw image bytes
+  imageType String? // MIME type, e.g. image/jpeg
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -38,6 +43,7 @@ model Product {
   batches      ProductBatch[]
 
   @@index([name])
+  @@index([category])
 }
 
 // A priced stock batch for PACKET items. Each restock creates a batch;

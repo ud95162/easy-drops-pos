@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { ProductType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { normalizeCategory } from "@/lib/categories";
 
 export type ActionResult = { ok: boolean; error?: string };
 
@@ -17,6 +18,30 @@ function str(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
 }
 
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024; // 3MB safety cap
+
+/**
+ * Read the uploaded photo from the form.
+ * - { imageData, imageType } when a new photo was chosen
+ * - { imageData: null, imageType: null } when the photo was removed
+ * - {} when unchanged (nothing to write)
+ */
+function readImage(
+  formData: FormData
+): { imageData?: Buffer | null; imageType?: string | null } {
+  const dataUrl = str(formData, "imageData");
+  const remove = str(formData, "imageRemove") === "1";
+
+  const match = dataUrl.match(/^data:([\w/+.-]+);base64,(.+)$/);
+  if (match) {
+    const buffer = Buffer.from(match[2], "base64");
+    if (buffer.length > MAX_IMAGE_BYTES) return {}; // too big; skip
+    return { imageType: match[1], imageData: buffer };
+  }
+  if (remove) return { imageData: null, imageType: null };
+  return {};
+}
+
 export async function createProduct(formData: FormData): Promise<ActionResult> {
   await requireAuth();
 
@@ -26,6 +51,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
     str(formData, "type") === "LOOSE" ? ProductType.LOOSE : ProductType.PACKET;
   const unit = str(formData, "unit") || (type === ProductType.LOOSE ? "kg" : "pcs");
   const barcodeRaw = str(formData, "barcode");
+  const category = normalizeCategory(str(formData, "category"));
 
   if (!name) return { ok: false, error: "Name is required." };
   if (!sinhalaName)
@@ -40,6 +66,7 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
     return { ok: false, error: "Prices cannot be negative." };
 
   const effectiveSale = salePrice || regularPrice;
+  const image = readImage(formData);
 
   try {
     await prisma.product.create({
@@ -48,6 +75,10 @@ export async function createProduct(formData: FormData): Promise<ActionResult> {
         sinhalaName,
         type,
         unit,
+        category,
+        ...(image.imageData !== undefined
+          ? { imageData: image.imageData, imageType: image.imageType }
+          : {}),
         costPrice,
         regularPrice,
         salePrice: effectiveSale,
@@ -93,6 +124,7 @@ export async function updateProduct(
     str(formData, "type") === "LOOSE" ? ProductType.LOOSE : ProductType.PACKET;
   const unit = str(formData, "unit") || (type === ProductType.LOOSE ? "kg" : "pcs");
   const barcodeRaw = str(formData, "barcode");
+  const category = normalizeCategory(str(formData, "category"));
 
   if (!name) return { ok: false, error: "Name is required." };
   if (!sinhalaName) return { ok: false, error: "Sinhala name is required." };
@@ -100,6 +132,7 @@ export async function updateProduct(
   const costPrice = num(formData, "costPrice");
   const regularPrice = num(formData, "regularPrice");
   const salePrice = num(formData, "salePrice");
+  const image = readImage(formData);
 
   try {
     await prisma.product.update({
@@ -109,10 +142,14 @@ export async function updateProduct(
         sinhalaName,
         type,
         unit,
+        category,
         costPrice,
         regularPrice,
         salePrice,
         barcode: barcodeRaw || null,
+        ...(image.imageData !== undefined
+          ? { imageData: image.imageData, imageType: image.imageType }
+          : {}),
       },
     });
 

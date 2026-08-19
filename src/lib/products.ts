@@ -8,12 +8,14 @@ export type SerializedProduct = {
   sinhalaName: string;
   type: ProductType;
   unit: string;
+  category: string | null;
   costPrice: number;
   regularPrice: number;
   salePrice: number;
   stock: number;
   barcode: string | null;
   active: boolean;
+  hasImage: boolean;
   // For PACKET items: priced stock batches, oldest first (only those with stock).
   batches: (BatchLite & { costPrice: number; quantity: number })[];
 };
@@ -39,12 +41,14 @@ export function serializeProduct(
     sinhalaName: p.sinhalaName,
     type: p.type,
     unit: p.unit,
+    category: p.category ?? null,
     costPrice: toNumber(p.costPrice),
     regularPrice: toNumber(p.regularPrice),
     salePrice: toNumber(p.salePrice),
     stock: toNumber(p.stock),
     barcode: p.barcode,
     active: p.active,
+    hasImage: !!p.imageType,
     batches,
   };
 }
