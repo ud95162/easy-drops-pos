@@ -7,7 +7,11 @@ import { CATEGORIES } from "@/lib/categories";
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
 
-/** Resize + JPEG-compress an image file in the browser, returning a data URL. */
+/**
+ * Resize + compress an image file in the browser, returning a data URL.
+ * Transparent formats (PNG/WebP/GIF) keep their transparency by exporting
+ * PNG; opaque photos are flattened onto white and exported as smaller JPEG.
+ */
 function compressImage(
   file: File,
   maxSize = 800,
@@ -33,8 +37,21 @@ function compressImage(
         canvas.height = height;
         const ctx = canvas.getContext("2d");
         if (!ctx) return reject(new Error("Canvas unsupported"));
+
+        // Keep transparency for formats that support an alpha channel.
+        const keepAlpha = /png|webp|gif/i.test(file.type);
+        if (!keepAlpha) {
+          // JPEG has no alpha; flatten onto white so it isn't filled black.
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, width, height);
+        }
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL("image/jpeg", quality));
+
+        resolve(
+          keepAlpha
+            ? canvas.toDataURL("image/png")
+            : canvas.toDataURL("image/jpeg", quality)
+        );
       };
       img.src = reader.result as string;
     };
