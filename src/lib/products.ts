@@ -22,7 +22,8 @@ export type SerializedProduct = {
 
 /** Convert a Prisma Product (with Decimal fields) to a plain client-safe object. */
 export function serializeProduct(
-  p: Product & { batches?: ProductBatch[] }
+  // imageData is globally omitted from queries; only imageType is read here.
+  p: Omit<Product, "imageData"> & { batches?: ProductBatch[] }
 ): SerializedProduct {
   const batches = (p.batches ?? [])
     .filter((b) => toNumber(b.remaining) > 0)

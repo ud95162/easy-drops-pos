@@ -1,9 +1,5 @@
 import { PrismaClient } from "@prisma/client";
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
 /**
  * Resolve the database URL from any of the common env var names.
  * Vercel's Prisma Postgres integration may expose it under a prefixed
@@ -33,15 +29,21 @@ function resolveDatabaseUrl(): string | undefined {
 
 const databaseUrl = resolveDatabaseUrl();
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+function createPrisma() {
+  return new PrismaClient({
     ...(databaseUrl ? { datasourceUrl: databaseUrl } : {}),
     // Never load heavy image bytes unless a query explicitly selects them
     // (the /api/products/[id]/image route does).
     omit: { product: { imageData: true } },
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
+}
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: ReturnType<typeof createPrisma> | undefined;
+};
+
+export const prisma = globalForPrisma.prisma ?? createPrisma();
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;

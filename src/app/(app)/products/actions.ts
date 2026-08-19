@@ -28,15 +28,18 @@ const MAX_IMAGE_BYTES = 3 * 1024 * 1024; // 3MB safety cap
  */
 function readImage(
   formData: FormData
-): { imageData?: Buffer | null; imageType?: string | null } {
+): { imageData?: Uint8Array<ArrayBuffer> | null; imageType?: string | null } {
   const dataUrl = str(formData, "imageData");
   const remove = str(formData, "imageRemove") === "1";
 
   const match = dataUrl.match(/^data:([\w/+.-]+);base64,(.+)$/);
   if (match) {
-    const buffer = Buffer.from(match[2], "base64");
-    if (buffer.length > MAX_IMAGE_BYTES) return {}; // too big; skip
-    return { imageType: match[1], imageData: buffer };
+    const raw = Buffer.from(match[2], "base64");
+    if (raw.byteLength > MAX_IMAGE_BYTES) return {}; // too big; skip
+    // Copy into a fresh ArrayBuffer so the type is Uint8Array<ArrayBuffer>.
+    const bytes = new Uint8Array(raw.byteLength);
+    bytes.set(raw);
+    return { imageType: match[1], imageData: bytes };
   }
   if (remove) return { imageData: null, imageType: null };
   return {};
