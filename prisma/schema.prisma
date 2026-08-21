@@ -41,9 +41,77 @@ model Product {
   stockEntries StockEntry[]
   saleItems    SaleItem[]
   batches      ProductBatch[]
+  orderItems   OrderItem[]
 
   @@index([name])
   @@index([category])
+}
+
+// A storefront/app shopper account (separate from the credit-book Customer).
+model AppUser {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  phone        String?
+  address      String?
+  passwordHash String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders Order[]
+
+  @@index([email])
+}
+
+enum OrderStatus {
+  PENDING // placed, awaiting payment
+  PAID // payment received; ready to fulfil / becomes a sale
+  CANCELLED
+}
+
+// An online order placed from the app. Stays PENDING until payment is
+// confirmed — it is not a POS Sale until then.
+model Order {
+  id     String      @id @default(cuid())
+  userId String
+  user   AppUser     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status OrderStatus @default(PENDING)
+
+  total Decimal @db.Decimal(12, 2)
+
+  // Delivery details captured at checkout.
+  name    String
+  phone   String
+  address String
+  note    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items OrderItem[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // Snapshot so the order stays correct even if the product changes later.
+  productName String
+  unit        String  @default("pcs")
+  unitPrice   Decimal @db.Decimal(12, 2)
+  quantity    Decimal @db.Decimal(14, 3)
+  lineTotal   Decimal @db.Decimal(12, 2)
+
+  @@index([orderId])
 }
 
 // A priced stock batch for PACKET items. Each restock creates a batch;

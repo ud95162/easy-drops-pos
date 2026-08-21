@@ -47,6 +47,7 @@ export async function GET(request: Request) {
       id: p.id,
       title: p.name,
       sinhalaName: p.sinhalaName,
+      type: p.type, // LOOSE (sold by weight) | PACKET
       unit: p.unit,
       category: p.category,
       originalPrice,
