@@ -8,6 +8,7 @@ export type SerializedEcomProduct = {
   type: ProductType;
   unit: string;
   category: string | null;
+  subcategory: string | null;
   regularPrice: number;
   salePrice: number;
   inStock: boolean;
@@ -28,6 +29,7 @@ export function serializeEcomProduct(
     type: p.type,
     unit: p.unit,
     category: p.category ?? null,
+    subcategory: p.subcategory ?? null,
     regularPrice: toNumber(p.regularPrice),
     salePrice: toNumber(p.salePrice),
     inStock: p.inStock,

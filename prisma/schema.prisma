@@ -58,6 +58,7 @@ model EcomProduct {
   type        ProductType @default(PACKET) // LOOSE = sold by weight (decimal qty)
   unit        String      @default("pcs") // e.g. kg, g, L, pcs
   category    String? // storefront category slug (see src/lib/categories.ts)
+  subcategory String? // storefront subcategory slug within `category`
 
   regularPrice Decimal @default(0) @db.Decimal(12, 2)
   salePrice    Decimal @default(0) @db.Decimal(12, 2)

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { ProductType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
-import { normalizeCategory } from "@/lib/categories";
+import { normalizeCategory, normalizeSubcategory } from "@/lib/categories";
 
 export type ActionResult = { ok: boolean; error?: string };
 
@@ -52,6 +52,7 @@ function readFields(formData: FormData) {
   const unit =
     str(formData, "unit") || (type === ProductType.LOOSE ? "kg" : "pcs");
   const category = normalizeCategory(str(formData, "category"));
+  const subcategory = normalizeSubcategory(category, str(formData, "subcategory"));
   const regularPrice = num(formData, "regularPrice");
   const salePrice = num(formData, "salePrice");
   const inStock = str(formData, "inStock") === "1";
@@ -62,6 +63,7 @@ function readFields(formData: FormData) {
     type,
     unit,
     category,
+    subcategory,
     regularPrice,
     salePrice,
     inStock,
@@ -90,6 +92,7 @@ export async function createEcomProduct(
         type: f.type,
         unit: f.unit,
         category: f.category,
+        subcategory: f.subcategory,
         regularPrice: f.regularPrice,
         salePrice: f.salePrice,
         inStock: f.inStock,
@@ -130,6 +133,7 @@ export async function updateEcomProduct(
         type: f.type,
         unit: f.unit,
         category: f.category,
+        subcategory: f.subcategory,
         regularPrice: f.regularPrice,
         salePrice: f.salePrice,
         inStock: f.inStock,

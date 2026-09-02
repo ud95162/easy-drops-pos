@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import type { SerializedEcomProduct } from "@/lib/ecom-products";
-import { CATEGORIES } from "@/lib/categories";
+import { CATEGORIES, subcategoriesOf } from "@/lib/categories";
 
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
@@ -169,6 +169,11 @@ function Toggle({
 /** Shared inputs for the create + edit forms. */
 export function StoreFields({ product }: { product?: SerializedEcomProduct }) {
   const [type, setType] = useState<"LOOSE" | "PACKET">(product?.type ?? "PACKET");
+  const [category, setCategory] = useState<string>(product?.category ?? "");
+  // Reset the subcategory when the category changes (unless it still belongs).
+  const subs = subcategoriesOf(category);
+  const [subcategory, setSubcategory] = useState<string>(product?.subcategory ?? "");
+  const currentSub = subs.some((s) => s.slug === subcategory) ? subcategory : "";
 
   return (
     <div className="space-y-4">
@@ -217,20 +222,44 @@ export function StoreFields({ product }: { product?: SerializedEcomProduct }) {
         </Field>
       </div>
 
-      <Field label="Storefront category">
-        <select
-          name="category"
-          defaultValue={product?.category ?? ""}
-          className={inputClass}
-        >
-          <option value="">— None (hidden from category pages) —</option>
-          {CATEGORIES.map((c) => (
-            <option key={c.slug} value={c.slug}>
-              {c.name}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field label="Storefront category">
+          <select
+            name="category"
+            value={category}
+            onChange={(e) => {
+              setCategory(e.target.value);
+              setSubcategory(""); // reset sub when category changes
+            }}
+            className={inputClass}
+          >
+            <option value="">— None (hidden from category pages) —</option>
+            {CATEGORIES.map((c) => (
+              <option key={c.slug} value={c.slug}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Subcategory">
+          <select
+            name="subcategory"
+            value={currentSub}
+            onChange={(e) => setSubcategory(e.target.value)}
+            disabled={subs.length === 0}
+            className={inputClass}
+          >
+            <option value="">
+              {subs.length === 0 ? "— Select a category first —" : "— None —"}
             </option>
-          ))}
-        </select>
-      </Field>
+            {subs.map((s) => (
+              <option key={s.slug} value={s.slug}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Regular price">

@@ -22,12 +22,14 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const { searchParams } = url;
   const category = searchParams.get("category");
+  const subcategory = searchParams.get("subcategory");
   const inStockOnly = searchParams.get("inStock") === "1";
 
   const products = await prisma.ecomProduct.findMany({
     where: {
       active: true,
       ...(category ? { category } : {}),
+      ...(subcategory ? { subcategory } : {}),
       ...(inStockOnly ? { inStock: true } : {}),
     },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
@@ -51,6 +53,7 @@ export async function GET(request: Request) {
       type: p.type, // LOOSE (sold by weight) | PACKET
       unit: p.unit,
       category: p.category,
+      subcategory: p.subcategory,
       originalPrice,
       discountedPrice,
       discountPercentage,
