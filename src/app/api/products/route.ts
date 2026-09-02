@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/money";
 
-// Read-only public catalog for the storefront website.
-// Returns active products in a website-friendly shape.
+// Read-only public catalog for the storefront website and mobile app.
+// Backed by the EcomProduct table (managed in the POS "Online Store" section),
+// NOT the POS inventory Product table.
 
 export const dynamic = "force-dynamic";
 
@@ -23,13 +24,13 @@ export async function GET(request: Request) {
   const category = searchParams.get("category");
   const inStockOnly = searchParams.get("inStock") === "1";
 
-  const products = await prisma.product.findMany({
+  const products = await prisma.ecomProduct.findMany({
     where: {
       active: true,
       ...(category ? { category } : {}),
-      ...(inStockOnly ? { stock: { gt: 0 } } : {}),
+      ...(inStockOnly ? { inStock: true } : {}),
     },
-    orderBy: { name: "asc" },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
   });
 
   const items = products.map((p) => {
@@ -53,7 +54,7 @@ export async function GET(request: Request) {
       originalPrice,
       discountedPrice,
       discountPercentage,
-      inStock: toNumber(p.stock) > 0,
+      inStock: p.inStock,
       imageUrl: p.imageType ? `${url.origin}/api/products/${p.id}/image` : null,
     };
   });

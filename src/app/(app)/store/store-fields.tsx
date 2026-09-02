@@ -1,22 +1,18 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { SerializedProduct } from "@/lib/products";
+import type { SerializedEcomProduct } from "@/lib/ecom-products";
 import { CATEGORIES } from "@/lib/categories";
 
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100";
 
 /**
- * Resize + compress an image file in the browser, returning a data URL.
- * Transparent formats (PNG/WebP/GIF) keep their transparency by exporting
- * PNG; opaque photos are flattened onto white and exported as smaller JPEG.
+ * Resize + compress an image in the browser, returning a data URL.
+ * Transparent formats (PNG/WebP/GIF) keep transparency by exporting PNG;
+ * opaque photos are flattened onto white and exported as smaller JPEG.
  */
-function compressImage(
-  file: File,
-  maxSize = 800,
-  quality = 0.8
-): Promise<string> {
+function compressImage(file: File, maxSize = 800, quality = 0.8): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Could not read file"));
@@ -37,16 +33,12 @@ function compressImage(
         canvas.height = height;
         const ctx = canvas.getContext("2d");
         if (!ctx) return reject(new Error("Canvas unsupported"));
-
-        // Keep transparency for formats that support an alpha channel.
         const keepAlpha = /png|webp|gif/i.test(file.type);
         if (!keepAlpha) {
-          // JPEG has no alpha; flatten onto white so it isn't filled black.
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, width, height);
         }
         ctx.drawImage(img, 0, 0, width, height);
-
         resolve(
           keepAlpha
             ? canvas.toDataURL("image/png")
@@ -67,10 +59,11 @@ function ImagePicker({
   productId?: string;
   hasImage?: boolean;
 }) {
+  // The public storefront image route is backed by EcomProduct.
   const existing =
-    hasImage && productId ? `/api/pos-products/${productId}/image` : null;
+    hasImage && productId ? `/api/products/${productId}/image` : null;
   const [preview, setPreview] = useState<string | null>(existing);
-  const [dataUrl, setDataUrl] = useState(""); // new (compressed) image
+  const [dataUrl, setDataUrl] = useState("");
   const [remove, setRemove] = useState(false);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -85,7 +78,7 @@ function ImagePicker({
       setPreview(compressed);
       setRemove(false);
     } catch {
-      // ignore; keep previous preview
+      // keep previous preview
     } finally {
       setBusy(false);
     }
@@ -101,7 +94,7 @@ function ImagePicker({
   return (
     <div>
       <span className="mb-1 block text-xs font-medium text-slate-600">
-        Product photo (website)
+        Product photo
       </span>
       <div className="flex items-center gap-4">
         <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-300 bg-slate-50 text-slate-300">
@@ -138,24 +131,44 @@ function ImagePicker({
         onChange={onFile}
         className="hidden"
       />
-      {/* Submitted to the server action */}
       <input type="hidden" name="imageData" value={dataUrl} />
       <input type="hidden" name="imageRemove" value={remove ? "1" : ""} />
     </div>
   );
 }
 
-/** The shared set of product inputs, used by both the create page and edit modal. */
-export function ProductFields({
-  product,
-  includeStock,
+function Toggle({
+  name,
+  label,
+  hint,
+  defaultChecked,
 }: {
-  product?: SerializedProduct;
-  includeStock: boolean;
+  name: string;
+  label: string;
+  hint: string;
+  defaultChecked: boolean;
 }) {
-  const [type, setType] = useState<"LOOSE" | "PACKET">(
-    product?.type ?? "PACKET"
+  const [on, setOn] = useState(defaultChecked);
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3">
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(e) => setOn(e.target.checked)}
+        className="mt-0.5 h-5 w-5 accent-brand-600"
+      />
+      <input type="hidden" name={name} value={on ? "1" : ""} />
+      <span>
+        <span className="block text-sm font-medium text-slate-800">{label}</span>
+        <span className="block text-xs text-slate-500">{hint}</span>
+      </span>
+    </label>
   );
+}
+
+/** Shared inputs for the create + edit forms. */
+export function StoreFields({ product }: { product?: SerializedEcomProduct }) {
+  const [type, setType] = useState<"LOOSE" | "PACKET">(product?.type ?? "PACKET");
 
   return (
     <div className="space-y-4">
@@ -171,7 +184,7 @@ export function ProductFields({
             placeholder="Sugar"
           />
         </Field>
-        <Field label="Sinhala name (receipt)">
+        <Field label="Sinhala name">
           <input
             name="sinhalaName"
             defaultValue={product?.sinhalaName}
@@ -190,8 +203,8 @@ export function ProductFields({
             onChange={(e) => setType(e.target.value as "LOOSE" | "PACKET")}
             className={inputClass}
           >
-            <option value="PACKET">Packet (fixed price)</option>
-            <option value="LOOSE">Loose (price updates with stock)</option>
+            <option value="PACKET">Packet (sold as a unit)</option>
+            <option value="LOOSE">Loose (sold by weight — decimal qty)</option>
           </select>
         </Field>
         <Field label="Unit">
@@ -204,13 +217,13 @@ export function ProductFields({
         </Field>
       </div>
 
-      <Field label="Storefront category (website)">
+      <Field label="Storefront category">
         <select
           name="category"
           defaultValue={product?.category ?? ""}
           className={inputClass}
         >
-          <option value="">— None (hidden from website) —</option>
+          <option value="">— None (hidden from category pages) —</option>
           {CATEGORIES.map((c) => (
             <option key={c.slug} value={c.slug}>
               {c.name}
@@ -219,18 +232,7 @@ export function ProductFields({
         </select>
       </Field>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Field label="Cost price">
-          <input
-            name="costPrice"
-            type="number"
-            inputMode="decimal"
-            step="0.01"
-            min="0"
-            defaultValue={product?.costPrice ?? 0}
-            className={inputClass}
-          />
-        </Field>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Regular price">
           <input
             name="regularPrice"
@@ -242,7 +244,7 @@ export function ProductFields({
             className={inputClass}
           />
         </Field>
-        <Field label="Sale price">
+        <Field label="Sale price (0 = no discount)">
           <input
             name="salePrice"
             type="number"
@@ -255,36 +257,20 @@ export function ProductFields({
         </Field>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {includeStock && (
-          <Field label={`Opening stock (${type === "LOOSE" ? "kg/qty" : "pcs"})`}>
-            <input
-              name="stock"
-              type="number"
-              inputMode="decimal"
-              step="0.001"
-              min="0"
-              defaultValue={0}
-              className={inputClass}
-            />
-          </Field>
-        )}
-        <Field label="Barcode (optional)">
-          <input
-            name="barcode"
-            defaultValue={product?.barcode ?? ""}
-            className={inputClass}
-            placeholder="e.g. 4790001000015"
-          />
-        </Field>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Toggle
+          name="inStock"
+          label="In stock"
+          hint="Off shows it as out of stock online."
+          defaultChecked={product?.inStock ?? true}
+        />
+        <Toggle
+          name="active"
+          label="Published"
+          hint="Off hides it from the website & app."
+          defaultChecked={product?.active ?? true}
+        />
       </div>
-
-      {type === "LOOSE" && (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          Loose item: when you add new stock, the prices you enter there will
-          replace these prices.
-        </p>
-      )}
     </div>
   );
 }

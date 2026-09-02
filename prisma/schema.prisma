@@ -47,6 +47,36 @@ model Product {
   @@index([category])
 }
 
+// The public storefront/app catalog — managed separately from POS inventory.
+// POS `Product` is the shop's internal stock; `EcomProduct` is what shoppers
+// see online. They are intentionally decoupled: entries here are created and
+// priced in the POS "Online Store" section, not from POS stock movements.
+model EcomProduct {
+  id          String      @id @default(cuid())
+  name        String // English name
+  sinhalaName String // Sinhala name (shown in Sinhala mode)
+  type        ProductType @default(PACKET) // LOOSE = sold by weight (decimal qty)
+  unit        String      @default("pcs") // e.g. kg, g, L, pcs
+  category    String? // storefront category slug (see src/lib/categories.ts)
+
+  regularPrice Decimal @default(0) @db.Decimal(12, 2)
+  salePrice    Decimal @default(0) @db.Decimal(12, 2)
+
+  inStock Boolean @default(true) // manual availability toggle
+  active  Boolean @default(true) // published/visible on the storefront
+
+  // Product photo shown online, stored in the DB.
+  imageData Bytes? // raw image bytes
+  imageType String? // MIME type, e.g. image/jpeg
+
+  sortOrder Int      @default(0) // lower shows first
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([active])
+}
+
 // A storefront/app shopper account (separate from the credit-book Customer).
 model AppUser {
   id           String   @id @default(cuid())

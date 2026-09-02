@@ -7,6 +7,7 @@ import { logout } from "./actions";
 const links = [
   { href: "/pos", label: "POS / Sell" },
   { href: "/products", label: "Products" },
+  { href: "/store", label: "Online Store" },
   { href: "/stock", label: "Add Stock" },
   { href: "/sales", label: "Sales History" },
   { href: "/customers", label: "Customers" },

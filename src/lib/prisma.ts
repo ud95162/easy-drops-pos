@@ -34,7 +34,10 @@ function createPrisma() {
     ...(databaseUrl ? { datasourceUrl: databaseUrl } : {}),
     // Never load heavy image bytes unless a query explicitly selects them
     // (the /api/products/[id]/image route does).
-    omit: { product: { imageData: true } },
+    omit: {
+      product: { imageData: true },
+      ecomProduct: { imageData: true },
+    },
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 }

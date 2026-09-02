@@ -73,14 +73,14 @@ export async function POST(request: Request) {
     return jsonError("Name, phone, and delivery address are required.");
 
   // Recompute prices from the database — never trust client-sent prices.
+  // The storefront catalog is EcomProduct (not POS inventory).
   const ids = rawItems.map((i) => i.productId).filter(Boolean) as string[];
-  const products = await prisma.product.findMany({
+  const products = await prisma.ecomProduct.findMany({
     where: { id: { in: ids }, active: true },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
 
   const itemsData: {
-    productId: string;
     productName: string;
     unit: string;
     unitPrice: number;
@@ -98,7 +98,8 @@ export async function POST(request: Request) {
     const sale = toNumber(p.salePrice);
     const unitPrice = sale > 0 && sale < regular ? sale : regular;
     itemsData.push({
-      productId: p.id,
+      // No productId link: OrderItem.productId references POS Product, and the
+      // catalog is EcomProduct. The snapshot fields below keep the line correct.
       productName: p.name,
       unit: p.unit,
       unitPrice,
